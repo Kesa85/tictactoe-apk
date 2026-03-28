@@ -146,6 +146,7 @@ jobs:
           cat > app/build.gradle << 'EOF'
           apply plugin: 'com.android.application'
           android {
+              namespace 'com.kesa85.tictactoe'
               compileSdkVersion 34
               defaultConfig {
                   applicationId "com.kesa85.tictactoe"
@@ -203,7 +204,7 @@ jobs:
           zipStoreBase=GRADLE_USER_HOME
           zipStorePath=wrapper/dists
           EOF
-          gradle wrapper --gradle-version 8.4
+          gradle wrapper --gradle-version 8.4 --distribution-type  bin
 
       - name: Build APK
         run: ./gradlew assembleRelease
