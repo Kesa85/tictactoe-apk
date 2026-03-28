@@ -1,0 +1,72 @@
+name: Build APK
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Bubblewrap
+        run: npm install -g @bubblewrap/cli
+
+      - name: Create Bubblewrap project
+        run: |
+          mkdir apk-build && cd apk-build
+          bubblewrap init --manifest=https://Kesa85.github.io/tictactoe-apk/manifest.json --directory=. <<EOF
+          com.kesa85.tictactoe
+          Tic Tac Toe
+          1
+          1.0.0
+          portrait
+          #0f0f1a
+          #0f0f1a
+          https://Kesa85.github.io/tictactoe-apk/
+          EOF
+
+      - name: Generate signing key
+        run: |
+          cd apk-build
+          keytool -genkey -v \
+            -keystore tictactoe.keystore \
+            -alias tictactoe \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -storepass tictactoe123 \
+            -keypass tictactoe123 \
+            -dname "CN=Kesa85, OU=Dev, O=Kesa, L=KL, S=KL, C=MY"
+
+      - name: Build APK
+        run: |
+          cd apk-build
+          bubblewrap build --ks=tictactoe.keystore \
+            --ksAlias=tictactoe \
+            --ksPass=tictactoe123 \
+            --ksKeyPass=tictactoe123
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: tictactoe-apk
+          path: apk-build/app-release-signed.apk
+          retention-days: 30
