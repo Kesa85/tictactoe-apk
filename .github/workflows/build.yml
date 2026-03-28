@@ -35,7 +35,7 @@ jobs:
           mkdir -p app/src/main/res/mipmap-xxhdpi
           mkdir -p app/src/main/res/values
 
-      - name: Copy game files to assets
+      name: Copy game files to assets
         run: |
           cp index.html app/src/main/assets/
           cp manifest.json app/src/main/assets/
@@ -43,6 +43,41 @@ jobs:
           mkdir -p app/src/main/assets/icons
           cp icons/icon-192.png app/src/main/assets/icons/
           cp icons/icon-512.png app/src/main/assets/icons/
+Replace just that section with this:
+
+- name: Copy game files to assets
+        run: |
+          cp index.html app/src/main/assets/
+          cp manifest.json app/src/main/assets/
+          cp sw.js app/src/main/assets/
+          mkdir -p app/src/main/assets/icons
+          python3 -c "
+          import struct, zlib, math
+          def make_png(size, path):
+              raw = b''
+              for y in range(size):
+                  row = b'\x00'
+                  for x in range(size):
+                      cx,cy = x-size/2, y-size/2
+                      d = math.sqrt(cx*cx+cy*cy)
+                      if d > size*0.48: row += bytes([0,0,0,0])
+                      else: row += bytes([15,15,26,255])
+                  raw += row
+              def chunk(n,d):
+                  c=struct.pack('>I',len(d))+n+d
+                  return c+struct.pack('>I',zlib.crc32(n+d)&0xffffffff)
+              png=b'\x89PNG\r\n\x1a\n'
+              png+=chunk(b'IHDR',struct.pack('>IIBBBBB',size,size,8,6,0,0,0))
+              png+=chunk(b'IDAT',zlib.compress(raw,9))
+              png+=chunk(b'IEND',b'')
+              open(path,'wb').write(png)
+          make_png(192,'app/src/main/assets/icons/icon-192.png')
+          make_png(512,'app/src/main/assets/icons/icon-512.png')
+          make_png(192,'app/src/main/res/mipmap-xxhdpi/ic_launcher.png')
+          make_png(192,'app/src/main/res/mipmap-xhdpi/ic_launcher.png')
+          make_png(192,'app/src/main/res/mipmap-hdpi/ic_launcher.png')
+          make_png(192,'app/src/main/res/mipmap-mdpi/ic_launcher.png')
+          "
 
       - name: Create AndroidManifest.xml
         run: |
@@ -114,13 +149,6 @@ jobs:
               <string name="app_name">Tic Tac Toe</string>
           </resources>
           EOF
-
-      - name: Create launcher icons
-        run: |
-          cp icons/icon-192.png app/src/main/res/mipmap-xxhdpi/ic_launcher.png
-          cp icons/icon-192.png app/src/main/res/mipmap-xhdpi/ic_launcher.png
-          cp icons/icon-192.png app/src/main/res/mipmap-hdpi/ic_launcher.png
-          cp icons/icon-192.png app/src/main/res/mipmap-mdpi/ic_launcher.png
 
       - name: Create app build.gradle
         run: |
