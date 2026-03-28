@@ -12,61 +12,205 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '21'
+          java-version: '17'
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install Bubblewrap
-        run: npm install -g @bubblewrap/cli
-
-      - name: Create Bubblewrap project
+      - name: Install Android build tools
         run: |
-          mkdir apk-build && cd apk-build
-          bubblewrap init --manifest=https://Kesa85.github.io/tictactoe-apk/manifest.json --directory=. <<EOF
-          com.kesa85.tictactoe
-          Tic Tac Toe
-          1
-          1.0.0
-          portrait
-          #0f0f1a
-          #0f0f1a
-          https://Kesa85.github.io/tictactoe-apk/
+          sdkmanager "build-tools;34.0.0" "platforms;android-34"
+
+      - name: Create Android project structure
+        run: |
+          mkdir -p app/src/main/java/com/kesa85/tictactoe
+          mkdir -p app/src/main/assets
+          mkdir -p app/src/main/res/mipmap-hdpi
+          mkdir -p app/src/main/res/mipmap-mdpi
+          mkdir -p app/src/main/res/mipmap-xhdpi
+          mkdir -p app/src/main/res/mipmap-xxhdpi
+          mkdir -p app/src/main/res/values
+
+      - name: Copy game files to assets
+        run: |
+          cp index.html app/src/main/assets/
+          cp manifest.json app/src/main/assets/
+          cp sw.js app/src/main/assets/
+          mkdir -p app/src/main/assets/icons
+          cp icons/icon-192.png app/src/main/assets/icons/
+          cp icons/icon-512.png app/src/main/assets/icons/
+
+      - name: Create AndroidManifest.xml
+        run: |
+          cat > app/src/main/AndroidManifest.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+              package="com.kesa85.tictactoe">
+              <uses-permission android:name="android.permission.INTERNET"/>
+              <application
+                  android:allowBackup="true"
+                  android:icon="@mipmap/ic_launcher"
+                  android:label="Tic Tac Toe"
+                  android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true"
+                      android:screenOrientation="portrait">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN"/>
+                          <category android:name="android.intent.category.LAUNCHER"/>
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
           EOF
 
-      - name: Generate signing key
+      - name: Create MainActivity.java
         run: |
-          cd apk-build
+          cat > app/src/main/java/com/kesa85/tictactoe/MainActivity.java << 'EOF'
+          package com.kesa85.tictactoe;
+          import android.app.Activity;
+          import android.os.Bundle;
+          import android.webkit.WebSettings;
+          import android.webkit.WebView;
+          import android.webkit.WebViewClient;
+          import android.view.WindowManager;
+          public class MainActivity extends Activity {
+              private WebView webView;
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  getWindow().setFlags(
+                      WindowManager.LayoutParams.FLAG_FULLSCREEN,
+                      WindowManager.LayoutParams.FLAG_FULLSCREEN
+                  );
+                  webView = new WebView(this);
+                  setContentView(webView);
+                  WebSettings settings = webView.getSettings();
+                  settings.setJavaScriptEnabled(true);
+                  settings.setDomStorageEnabled(true);
+                  settings.setAllowFileAccessFromFileURLs(true);
+                  settings.setAllowUniversalAccessFromFileURLs(true);
+                  webView.setWebViewClient(new WebViewClient());
+                  webView.loadUrl("file:///android_asset/index.html");
+              }
+              @Override
+              public void onBackPressed() {
+                  if (webView.canGoBack()) webView.goBack();
+                  else super.onBackPressed();
+              }
+          }
+          EOF
+
+      - name: Create strings.xml
+        run: |
+          cat > app/src/main/res/values/strings.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <string name="app_name">Tic Tac Toe</string>
+          </resources>
+          EOF
+
+      - name: Create launcher icons
+        run: |
+          cp icons/icon-192.png app/src/main/res/mipmap-xxhdpi/ic_launcher.png
+          cp icons/icon-192.png app/src/main/res/mipmap-xhdpi/ic_launcher.png
+          cp icons/icon-192.png app/src/main/res/mipmap-hdpi/ic_launcher.png
+          cp icons/icon-192.png app/src/main/res/mipmap-mdpi/ic_launcher.png
+
+      - name: Create app build.gradle
+        run: |
+          cat > app/build.gradle << 'EOF'
+          apply plugin: 'com.android.application'
+          android {
+              compileSdkVersion 34
+              defaultConfig {
+                  applicationId "com.kesa85.tictactoe"
+                  minSdkVersion 21
+                  targetSdkVersion 34
+                  versionCode 1
+                  versionName "1.0"
+              }
+              buildTypes {
+                  release {
+                      minifyEnabled false
+                  }
+              }
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_1_8
+                  targetCompatibility JavaVersion.VERSION_1_8
+              }
+          }
+          dependencies {}
+          EOF
+
+      - name: Create root build.gradle
+        run: |
+          cat > build.gradle << 'EOF'
+          buildscript {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+              dependencies {
+                  classpath 'com.android.tools.build:gradle:8.2.2'
+              }
+          }
+          allprojects {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          EOF
+
+      - name: Create settings.gradle
+        run: |
+          cat > settings.gradle << 'EOF'
+          include ':app'
+          EOF
+
+      - name: Create gradle wrapper
+        run: |
+          mkdir -p gradle/wrapper
+          cat > gradle/wrapper/gradle-wrapper.properties << 'EOF'
+          distributionBase=GRADLE_USER_HOME
+          distributionPath=wrapper/dists
+          distributionUrl=https\://services.gradle.org/distributions/gradle-8.4-bin.zip
+          zipStoreBase=GRADLE_USER_HOME
+          zipStorePath=wrapper/dists
+          EOF
+          gradle wrapper --gradle-version 8.4
+
+      - name: Build APK
+        run: ./gradlew assembleRelease
+
+      - name: Sign APK
+        run: |
           keytool -genkey -v \
             -keystore tictactoe.keystore \
             -alias tictactoe \
-            -keyalg RSA \
-            -keysize 2048 \
+            -keyalg RSA -keysize 2048 \
             -validity 10000 \
             -storepass tictactoe123 \
             -keypass tictactoe123 \
             -dname "CN=Kesa85, OU=Dev, O=Kesa, L=KL, S=KL, C=MY"
-
-      - name: Build APK
-        run: |
-          cd apk-build
-          bubblewrap build --ks=tictactoe.keystore \
-            --ksAlias=tictactoe \
-            --ksPass=tictactoe123 \
-            --ksKeyPass=tictactoe123
+          
+          $ANDROID_HOME/build-tools/34.0.0/apksigner sign \
+            --ks tictactoe.keystore \
+            --ks-alias tictactoe \
+            --ks-pass pass:tictactoe123 \
+            --key-pass pass:tictactoe123 \
+            --out tictactoe-signed.apk \
+            app/build/outputs/apk/release/app-release-unsigned.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: tictactoe-apk
-          path: apk-build/app-release-signed.apk
+          path: tictactoe-signed.apk
           retention-days: 30
